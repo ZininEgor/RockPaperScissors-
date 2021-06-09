@@ -1,7 +1,8 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Collections.Generic;
 using System.Text;
 using System;
+using System.Globalization;
 
 namespace RockPaper
 {
@@ -37,14 +38,27 @@ namespace RockPaper
             return tokenBuffer;
         }
 
-        private static string GetHMAC(string data)
+        private static string HashEncode(byte[] hash)
         {
-            var hmac = SHA256.Create().ComputeHash(Encoding.UTF8.GetBytes(data));
-            var builder = new StringBuilder();
-            foreach (var h in hmac)
-                builder.Append(h.ToString("x2"));
-
-            return builder.ToString();
+            return BitConverter.ToString(hash).Replace("-", "").ToLower();
+        }
+        
+        private static byte[] HexDecode(string hex)
+        {
+            var bytes = new byte[hex.Length / 2];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                bytes[i] = byte.Parse(hex.Substring(i * 2, 2), NumberStyles.HexNumber);
+            }
+            return bytes;
+        }
+        private static byte[] HashHMAC(byte[] key, string message)
+        {   
+            var ba = Encoding.Default.GetBytes(message);
+            var hexString = BitConverter.ToString(ba);
+            hexString = hexString.Replace("-", "");
+            var hash = new HMACSHA256(key);
+            return hash.ComputeHash(HexDecode(hexString));
         }
 
         public static void Main(string[] args)
@@ -85,10 +99,10 @@ namespace RockPaper
             var secureKey = GetRandomKey();
             var rnd = new Random(BitConverter.ToInt32(secureKey, 0));
             var computerTurn = rnd.Next(1, handsigns.Length + 1);
-            var hmac = GetHMAC(BitConverter.ToString(secureKey));
+            var hmac = HashEncode(HashHMAC(secureKey, handsigns[computerTurn - 1]));
 
             Console.WriteLine("HMAC:{0}", hmac);
-            hmac = GetHMAC(computerTurn.ToString());
+            var hmacKey = HashEncode(secureKey);
 
             Console.WriteLine("Available moves:");
             for (var i = 1; i <= handsigns.Length; i++)
@@ -137,7 +151,7 @@ namespace RockPaper
             if (userMove == computerTurn) Console.WriteLine("Draw");
             else if (WinOrLose(winList, computerTurn)) Console.WriteLine("You Win!");
             else Console.WriteLine("You Defeat!");
-            Console.WriteLine("HMAC: {0}", hmac);
+            Console.WriteLine("HMAC key: {0}", hmacKey);
         }
     }
 }
